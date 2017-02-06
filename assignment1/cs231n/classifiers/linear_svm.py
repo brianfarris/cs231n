@@ -24,6 +24,7 @@ def svm_loss_naive(W, X, y, reg):
   # compute the loss and the gradient
   num_classes = W.shape[1]
   num_train = X.shape[0]
+  num_features = X.shape[1]
   loss = 0.0
 
   for i in xrange(num_train):
@@ -43,8 +44,8 @@ def svm_loss_naive(W, X, y, reg):
         delta_in[j] = 1
         delta_yn = np.zeros(num_classes)
         delta_yn[y[i]] = 1 
-        term1 = X[i].reshape(X[i].shape[0],1).dot(delta_in.reshape(1,10))
-        term2 = X[i].reshape(X[i].shape[0],1).dot(delta_yn.reshape(1,10))
+        term1 = X[i].reshape(num_features,1).dot(delta_in.reshape(1,10))
+        term2 = X[i].reshape(num_features,1).dot(delta_yn.reshape(1,10))
         dW += ( term1 - term2 ) / num_train
 
  # Right now the loss is a sum over all training examples, but we want it
