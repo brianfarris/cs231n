@@ -157,6 +157,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
   running_var = bn_param.get('running_var', np.zeros(D, dtype=x.dtype))
 
   out, cache = None, None
+  cache = {}
   if mode == 'train':
     #############################################################################
     # TODO: Implement the training-time forward pass for batch normalization.   #
@@ -183,6 +184,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     cache['xhat'] = xhat
     cache['gamma'] = gamma
     cache['beta'] = beta
+    cache['var_plus_eps'] = var + eps
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
@@ -230,8 +232,17 @@ def batchnorm_backward(dout, cache):
   # TODO: Implement the backward pass for batch normalization. Store the      #
   # results in the dx, dgamma, and dbeta variables.                           #
   #############################################################################
+  xhat = cache['xhat']
+  var_plus_eps = cache['var_plus_eps']
+
   dxhat = dout * cache['gamma']
-  dvar = dxhat (x - var)
+  dvar = -0.5 * dxhat * xhat / var_plus_eps
+  dvar = np.sum(dvar, axis=0)
+  m = cache['xhat'].shape[0]
+  dmu = np.sum(-dxhat / np.sqrt(var_plus_eps), axis=0) - 2. * dvar * np.sum(xhat * np.sqrt(var_plus_eps), axis=0) / m 
+  dx = dxhat / np.sqrt(var_plus_eps) + dvar * 2. * xhat * np.sqrt(var_plus_eps)/m + dmu / m
+  dgamma = np.sum(dout * xhat, axis=0)
+  dbeta = np.sum(dout, axis=0)
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################

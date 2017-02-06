@@ -185,6 +185,12 @@ class FullyConnectedNet(object):
     for i in range(self.num_layers):
         self.params['W'+str(i+1)] = weight_scale * np.random.normal(size=(dim_in[i], dim_out[i]))
         self.params['b'+str(i+1)] = weight_scale * np.random.normal(size=dim_out[i]) 
+    if self.use_batchnorm: 
+        for i in range(len(hidden_dims)):
+            self.params['gamma'+str(i+1)] = np.ones(dim_out[i])
+            self.params['beta'+str(i+1)] = np.zeros(dim_out[i])
+    #print "self.params: ",self.params
+
     #pass
     ############################################################################
     #                             END OF YOUR CODE                             #
@@ -249,7 +255,12 @@ class FullyConnectedNet(object):
     for i in range(self.num_layers-1):
         Wi = self.params['W'+str(i+1)]
         bi = self.params['b'+str(i+1)]
-        Xi, cache_i = affine_relu_forward(Xi, Wi, bi)
+        if self.use_batchnorm: 
+            gammai = self.params['gamma'+str(i+1)]
+            betai = self.params['beta'+str(i+1)]
+            Xi, cache_i = affine_bn_relu_forward(Xi, gammai, betai, self.bn_params[i], Wi, bi)
+        else:
+            Xi, cache_i = affine_relu_forward(Xi, Wi, bi)
         cache.append(cache_i)
 
     Wi = self.params['W'+str(self.num_layers)]
@@ -283,9 +294,16 @@ class FullyConnectedNet(object):
     dxi, dwi, dbi = affine_backward(dout, cache[self.num_layers-1])
     grads['W'+str(self.num_layers)] = dwi + reg * self.params['W'+str(self.num_layers)]
     grads['b'+str(self.num_layers)] = dbi
+    Wi = self.params['W'+str(self.num_layers)]
+    loss += 0.5 * reg * np.sum(Wi*Wi)
     for i in range(self.num_layers-2,-1,-1):
         Wi = self.params['W'+str(i+1)]
-        dxi, dwi, dbi = affine_relu_backward(dxi,cache[i])
+        if self.use_batchnorm:
+            dxi, dgammai, dbetai, dwi, dbi = affine_bn_relu_backward(dxi, cache[i])
+            grads['gamma'+str(i+1)] = dgammai
+            grads['beta'+str(i+1)] = dbetai
+        else:
+            dxi, dwi, dbi = affine_relu_backward(dxi,cache[i])
         grads['W'+str(i+1)] = dwi + reg * self.params['W'+str(i+1)]
         grads['b'+str(i+1)] = dbi 
         loss += 0.5 * reg * np.sum(Wi*Wi)
@@ -295,3 +313,17 @@ class FullyConnectedNet(object):
     ############################################################################
 
     return loss, grads
+
+def affine_bn_relu_forward(x, gamma, beta, bn_param, w, b):
+    a, fc_cache = affine_forward(x, w, b)
+    a_norm, bn_cache = batchnorm_forward(a, gamma, beta, bn_param)
+    out, relu_cache = relu_forward(a_norm)
+    cache = (fc_cache, bn_cache, relu_cache)
+    return out, cache
+
+def affine_bn_relu_backward(dout, cache):
+    fc_cache, bn_cache, relu_cache = cache
+    da = relu_backward(dout, relu_cache)
+    daa, dgamma, dbeta = batchnorm_backward(da, bn_cache)
+    dx, dw, db = affine_backward(daa, fc_cache)
+    return dx, dgamma, dbeta, dw, db
