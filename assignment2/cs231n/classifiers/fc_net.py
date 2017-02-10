@@ -251,6 +251,7 @@ class FullyConnectedNet(object):
     ############################################################################
     
     cache = []
+    dropout_cache = []
     Xi = X
     for i in range(self.num_layers-1):
         Wi = self.params['W'+str(i+1)]
@@ -261,6 +262,9 @@ class FullyConnectedNet(object):
             Xi, cache_i = affine_bn_relu_forward(Xi, gammai, betai, self.bn_params[i], Wi, bi)
         else:
             Xi, cache_i = affine_relu_forward(Xi, Wi, bi)
+        if self.use_dropout:
+            Xi, dropout_cache_i = dropout_forward(Xi, self.dropout_param)
+            dropout_cache.append(dropout_cache_i)
         cache.append(cache_i)
 
     Wi = self.params['W'+str(self.num_layers)]
@@ -297,6 +301,8 @@ class FullyConnectedNet(object):
     Wi = self.params['W'+str(self.num_layers)]
     loss += 0.5 * reg * np.sum(Wi*Wi)
     for i in range(self.num_layers-2,-1,-1):
+        if self.use_dropout:
+            dxi = dropout_backward(dxi, dropout_cache[i])
         Wi = self.params['W'+str(i+1)]
         if self.use_batchnorm:
             dxi, dgammai, dbetai, dwi, dbi = affine_bn_relu_backward(dxi, cache[i])
