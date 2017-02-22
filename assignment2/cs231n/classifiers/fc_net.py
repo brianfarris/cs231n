@@ -189,7 +189,6 @@ class FullyConnectedNet(object):
         for i in range(len(hidden_dims)):
             self.params['gamma'+str(i+1)] = np.ones(dim_out[i])
             self.params['beta'+str(i+1)] = np.zeros(dim_out[i])
-    #print "self.params: ",self.params
 
     #pass
     ############################################################################
@@ -212,12 +211,14 @@ class FullyConnectedNet(object):
     # pass of the second batch normalization layer, etc.
     self.bn_params = []
     if self.use_batchnorm:
-      self.bn_params = [{'mode': 'train'} for i in xrange(self.num_layers - 1)]
+        self.bn_params = [{'mode': 'train', 'momentum':0.9} for i in xrange(self.num_layers - 1)]
+
     
     # Cast all parameters to the correct datatype
     for k, v in self.params.iteritems():
       self.params[k] = v.astype(dtype)
 
+    #self.params['bn_params'] = self.bn_params
 
   def loss(self, X, y=None):
     """
@@ -227,14 +228,13 @@ class FullyConnectedNet(object):
     """
     X = X.astype(self.dtype)
     mode = 'test' if y is None else 'train'
-
     # Set train/test mode for batchnorm params and dropout param since they
     # behave differently during training and testing.
     if self.dropout_param is not None:
       self.dropout_param['mode'] = mode   
     if self.use_batchnorm:
       for bn_param in self.bn_params:
-        bn_param[mode] = mode
+        bn_param['mode'] = mode
 
     scores = None
     ############################################################################
@@ -260,6 +260,7 @@ class FullyConnectedNet(object):
             gammai = self.params['gamma'+str(i+1)]
             betai = self.params['beta'+str(i+1)]
             Xi, cache_i = affine_bn_relu_forward(Xi, gammai, betai, self.bn_params[i], Wi, bi)
+            #Xi, cache_i = affine_bn_relu_forward(Xi, gammai, betai, self.params['bn_params'][i], Wi, bi)
         else:
             Xi, cache_i = affine_relu_forward(Xi, Wi, bi)
         if self.use_dropout:
@@ -274,7 +275,6 @@ class FullyConnectedNet(object):
     ############################################################################
     #                             END OF YOUR CODE                             #
     ############################################################################
-
     # If test mode return early
     if mode == 'test':
       return scores

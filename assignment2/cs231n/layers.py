@@ -387,7 +387,17 @@ def conv_forward_naive(x, w, b, conv_param):
   # TODO: Implement the convolutional forward pass.                           #
   # Hint: you can use the function np.pad for padding.                        #
   #############################################################################
-  pass
+  pad = conv_param['pad']
+  stride = conv_param['stride']
+  x_padded = np.pad(x, ((0,0),(0,0),(pad,pad),(pad,pad)), 'constant')
+  N,C,H,W = x.shape
+  F,C,HH,WW = w.shape
+  Hprime = 1 + (H + 2 * pad - HH) / stride
+  Wprime = 1 + (W + 2 * pad - WW) / stride
+  out = np.zeros((N,F,Hprime,Wprime))
+  for i in np.arange(Hprime):
+      for j in np.arange(Wprime):
+          out[:,:,i,j] = np.tensordot(x_padded[:,:,i*stride:i*stride+HH,j*stride:j*stride+WW], w, axes=((1,2,3),(1,2,3) )) + b.reshape(1,F)
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -412,7 +422,28 @@ def conv_backward_naive(dout, cache):
   #############################################################################
   # TODO: Implement the convolutional backward pass.                          #
   #############################################################################
-  pass
+  x, w, b, conv_param = cache
+  pad = conv_param['pad']
+  stride = conv_param['stride']
+  x_padded = np.pad(x, ((0,0),(0,0),(pad,pad),(pad,pad)), 'constant')
+  N, C, H, W = x.shape
+  F, C, HH, WW = w.shape
+  Hprime = 1 + (H + 2 * pad - HH) / stride
+  Wprime = 1 + (W + 2 * pad - WW) / stride
+
+  dx= np.zeros(x_padded.shape)
+  dw = np.zeros(w.shape)
+  db = np.zeros(b.shape)
+
+  for i in np.arange(Hprime):
+      for j in np.arange(Wprime):
+          dx[:,:,i*stride:i*stride+HH,j*stride:j*stride+WW] += np.tensordot(dout[:,:,i,j], w, axes=(1,0))
+          dw +=  np.tensordot(dout[:,:,i,j],x_padded[:,:,i*stride:i*stride+HH,j*stride:j*stride+WW], axes=(0,0))
+          db += np.tensordot(dout[:,:,i,j],np.ones(N).reshape(1,N), axes=(0,1)).reshape(F,)
+  
+  dx = dx[:,:,1:-1,1:-1]
+
+
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -438,7 +469,18 @@ def max_pool_forward_naive(x, pool_param):
   #############################################################################
   # TODO: Implement the max pooling forward pass                              #
   #############################################################################
-  pass
+  pool_height = pool_param['pool_height']
+  pool_width = pool_param['pool_width']
+  stride = pool_param['stride']
+
+  N,C,H,W = x.shape
+  Hprime = 1 + (H  - pool_height) / stride
+  Wprime = 1 + (W  - pool_width) / stride
+  out = np.zeros((N,C,Hprime,Wprime))
+  for i in np.arange(Hprime):
+      for j in np.arange(Wprime):
+          out[:,:,i,j] = x[:,:,i*stride:i*stride+pool_height,j*stride:j*stride+pool_width].max(axis=(2,3))
+  
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -458,10 +500,23 @@ def max_pool_backward_naive(dout, cache):
   - dx: Gradient with respect to x
   """
   dx = None
+  x, pool_param = cache
+  pool_height = pool_param['pool_height']
+  pool_width = pool_param['pool_width']
+  stride = pool_param['stride']
+
+  N,C,H,W = x.shape
+  Hprime = 1 + (H  - pool_height) / stride
+  Wprime = 1 + (W  - pool_width) / stride
   #############################################################################
   # TODO: Implement the max pooling backward pass                             #
   #############################################################################
-  pass
+  dx = np.zeros(x.shape)
+  for i in np.arange(Hprime):
+      for j in np.arange(Wprime):
+          x_filter = x[:,:,i*stride:i*stride+pool_height,j*stride:j*stride+pool_width]
+          max_mask = np.array(x_filter.max(axis=(2,3)).reshape(N,C,1,1)==x_filter)
+          dx[:,:,i*stride:i*stride+pool_height,j*stride:j*stride+pool_width] += dout[:,:,i,j].reshape(N,C,1,1) * max_mask
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -490,8 +545,15 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
   - out: Output data, of shape (N, C, H, W)
   - cache: Values needed for the backward pass
   """
-  out, cache = None, None
+  mode = bn_param['mode']
+  eps = bn_param.get('eps', 1e-5)
+  momentum = bn_param.get('momentum', 0.9)
 
+  N,C,H,W = x.shape
+  running_mean = bn_param.get('running_mean', np.zeros((1,C,1,1), dtype=x.dtype))
+  running_var = bn_param.get('running_var', np.zeros((1,C,1,1), dtype=x.dtype))
+
+  out, cache = None, None
   #############################################################################
   # TODO: Implement the forward pass for spatial batch normalization.         #
   #                                                                           #
@@ -499,11 +561,29 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
   # version of batch normalization defined above. Your implementation should  #
   # be very short; ours is less than five lines.                              #
   #############################################################################
-  pass
+  cache = {}
+  if mode=='train':
+    mu = x.mean(axis=(0,2,3), keepdims=True)
+    var = x.var(axis=(0,2,3), keepdims=True)
+    xhat = (x - mu) / np.sqrt(var + eps)
+    out = gamma.reshape(1,x.shape[1],1,1) * xhat + beta.reshape(1,x.shape[1],1,1)
+    bn_param['running_mean'] = momentum * running_mean + (1-momentum) * mu
+    bn_param['running_var'] = momentum * running_var + (1-momentum) * var
+    cache['mu'] = mu
+    cache['var'] = var
+    cache['xhat'] = xhat
+    cache['gamma'] = gamma
+    cache['beta'] = beta
+    cache['var_plus_eps'] = var + eps
+  elif mode=='test':
+    out = gamma.reshape(1,x.shape[1],1,1) * (x - running_mean) / np.sqrt(running_var + eps) + beta.reshape(1,x.shape[1],1,1)
+  else:
+    raise ValueError('Invalid forward batchnorm mode')
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
 
+  
   return out, cache
 
 
@@ -529,7 +609,19 @@ def spatial_batchnorm_backward(dout, cache):
   # version of batch normalization defined above. Your implementation should  #
   # be very short; ours is less than five lines.                              #
   #############################################################################
-  pass
+  xhat = cache['xhat']
+  var_plus_eps = cache['var_plus_eps']
+
+  gamma = cache['gamma'].reshape(1,dout.shape[1],1,1)
+  beta = cache['beta'].reshape(1,dout.shape[1],1,1)
+  dxhat = dout * gamma
+  dvar = -0.5 * dxhat * xhat / var_plus_eps
+  dvar = np.sum(dvar, axis=(0,2,3),keepdims=True)
+  m = cache['xhat'].shape[0] * cache['xhat'].shape[2] * cache['xhat'].shape[3]
+  dmu = np.sum(-dxhat / np.sqrt(var_plus_eps), axis=(0,2,3),keepdims=True) - 2. * dvar * np.sum(xhat * np.sqrt(var_plus_eps), axis=(0,2,3),keepdims=True) / m
+  dx = dxhat / np.sqrt(var_plus_eps) + dvar * 2. * xhat * np.sqrt(var_plus_eps)/m + dmu / m
+  dgamma = np.sum(dout * xhat, axis=(0,2,3) )
+  dbeta = np.sum(dout, axis=(0,2,3))
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################

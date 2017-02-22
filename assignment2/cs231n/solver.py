@@ -255,12 +255,43 @@ class Solver(object):
                  self.epoch, self.num_epochs, train_acc, val_acc)
 
         # Keep track of the best model
+    
+#        self.best_val_acc = val_acc
+#        self.best_params = {}
+#        for k, v in self.model.params.iteritems():
+#            self.best_params[k] = v.copy()
+# original form        
         if val_acc > self.best_val_acc:
           self.best_val_acc = val_acc
           self.best_params = {}
           for k, v in self.model.params.iteritems():
             self.best_params[k] = v.copy()
 
+          try:
+            self.best_bn_params1 = self.model.bn_params1
+          except:
+            pass
+          try:
+            self.best_bn_params2 = self.model.bn_params2
+          except:
+            pass
+          try:
+              self.best_bn_params = []
+              for item in self.model.bn_params:
+                  self.best_bn_params.append(item.copy())
+          except:
+            pass
     # At the end of training swap the best params into the model
     self.model.params = self.best_params
-
+    try: 
+        self.model.bn_params1 = self.best_bn_params1
+    except:
+        pass
+    try:
+        self.model.bn_params2 = self.best_bn_params2
+    except:
+        pass
+    try:
+        self.model.bn_params = self.best_bn_params
+    except:
+        pass
